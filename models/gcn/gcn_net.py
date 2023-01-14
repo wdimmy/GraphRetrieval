@@ -33,9 +33,11 @@ class GCN_NET(torch.nn.Module):
             if self.dataset == "CIFAR10":
                self.node_emb =  nn.Linear(3, self.emb_dim)
             elif self.dataset == "MNIST":
-               self.node_emb =  nn.Linear(1, self.emb_dim)
+               self.node_emb = nn.Linear(1, self.emb_dim)
         elif self.source == "lsc":
-            self.node_emb =  AtomEncoder(emb_dim=self.emb_dim)
+            self.node_emb = AtomEncoder(emb_dim=self.emb_dim)
+        elif self.source == "ddi":
+            self.node_emb = nn.Linear(9, self.emb_dim)
 
         ###List of GNNs
         self.convs = torch.nn.ModuleList()

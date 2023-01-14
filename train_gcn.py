@@ -18,12 +18,14 @@ import csv
 from sklearn.metrics import roc_auc_score
 from models.gcn.gcn_config import args
 from models.utils.evaluator import CMetrics
+torch.autograd.set_detect_anomaly(True)
 
 device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
 crossentroy_criterion = torch.nn.CrossEntropyLoss().to(device)
 nllloss_criterion = nn.NLLLoss().to(device)
 cls_criterion = torch.nn.BCEWithLogitsLoss().to(device)
 reg_criterion = torch.nn.MSELoss().to(device)
+
 
 def train(model, device, loader, optimizer, task_type, retrieval_engine=None):
     model.train()
@@ -35,7 +37,7 @@ def train(model, device, loader, optimizer, task_type, retrieval_engine=None):
             if args.retrieval:
                 batch_retrieval_graph_list = retrieval_engine.encode(batch, train=train)
                 batch_retrieval_graph_list = [graph.to(device) for graph in batch_retrieval_graph_list]
-                pred = model.forward(batch, batch_retrieval_graph_list)
+                pred = model.forward(batch, batch_retrieval_graph_list, device)
                 if pred.size(-1) == 1 and len(batch.y.size()) == 1:
                      pred = pred.view(-1,)
                 optimizer.zero_grad()
@@ -67,6 +69,7 @@ def train(model, device, loader, optimizer, task_type, retrieval_engine=None):
             loss.backward()
             optimizer.step()
 
+
 def eval(model, device, loader, retrieval_engine=None, evaluator=None, metric_name="rocauc"):
     model.eval()
     y_true = []
@@ -80,7 +83,7 @@ def eval(model, device, loader, retrieval_engine=None, evaluator=None, metric_na
                 if args.retrieval:
                     batch_retrieval_graph_list = retrieval_engine.encode(batch, train=False)
                     batch_retrieval_graph_list = [graph.to(device) for graph in batch_retrieval_graph_list]
-                    pred = model.forward(batch, batch_retrieval_graph_list)
+                    pred = model.forward(batch, batch_retrieval_graph_list, device)
                     if pred.size(-1) == 1 and len(batch.y.size()) == 1:
                          pred = pred.view(-1,)
                 else:
@@ -90,7 +93,6 @@ def eval(model, device, loader, retrieval_engine=None, evaluator=None, metric_na
             
             y_true.append(batch.y.detach().cpu())
             y_pred.append(pred.detach().cpu())
-           
 
     y_true = torch.cat(y_true, dim = 0).numpy()
     y_pred = torch.cat(y_pred, dim = 0).numpy()
@@ -112,6 +114,7 @@ def eval(model, device, loader, retrieval_engine=None, evaluator=None, metric_na
             print('Some target is missing!')
             print('Missing ratio: %f' % (1 - float(len(roc_list)) / y_true.shape[1]))
         return sum(roc_list) / len(roc_list)
+
 
 def main():
     # Training settings
@@ -153,15 +156,15 @@ def main():
     elif args.source == "lsc":
         if args.dataset == "PCQM4M":
              dataset = PygPCQM4MDataset(root = 'dataset/')
-        elif args.dataset == "CQM4Mv2":
-             dataset = PygPCQM4Mv2Datasett(root = 'dataset/')
+        elif args.dataset == "PCQM4Mv2":
+             dataset = PygPCQM4Mv2Dataset(root = 'dataset/')
         else:
                 raise ValueError("{} is not supported".format(args.dataset))
 
         split_idx = dataset.get_idx_split()
-        train_dataset = dataset[split_idx["train"]][:1000]
-        valid_dataset = dataset[split_idx["valid"]][:500]
-        test_dataset = dataset[split_idx["valid"]][:500] # test set is hidden
+        train_dataset = dataset[split_idx["train"]]
+        valid_dataset = dataset[split_idx["valid"]]
+        test_dataset = dataset[split_idx["valid"]]# test set is hidden
     
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,  num_workers = args.num_workers)
         valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers = args.num_workers)
@@ -184,7 +187,7 @@ def main():
             base_model.load_state_dict(torch.load(args.pretrained_model_path)["model"], strict=False)
             
         adapter = Attention(args.emb_dim, args.k)
-        model   = GraphRetrieval(gnn=base_model, adapter=adapter, source=args.source, dataset=args.dataset)
+        model = GraphRetrieval(gnn=base_model, adapter=adapter, source=args.source, dataset=args.dataset)
     else:
         model = GCN_NET(num_tasks=num_classes, num_layer=args.num_layer,emb_dim= args.emb_dim, drop_ratio=args.drop_ratio, source=args.source, dataset=args.dataset).to(device)
     
@@ -205,21 +208,17 @@ def main():
         print('Evaluating...')
         
         if args.source == "ogb":
-            if args.dataset == "ogbg-molmuv":
-                train_perf = eval(model, device, train_loader, retrieval_engine)
-                valid_perf = eval(model, device, valid_loader, retrieval_engine)
-                test_perf = eval(model, device, test_loader,  retrieval_engine)
-            else:
-                train_perf = eval(model, device, train_loader, retrieval_engine, Evaluator(args.dataset), "rocauc")
-                valid_perf = eval(model, device, valid_loader, retrieval_engine, Evaluator(args.dataset), "rocauc")
-                test_perf =  eval(model, device, test_loader, retrieval_engine,  Evaluator(args.dataset), "rocauc")
+            train_perf = eval(model, device, train_loader, retrieval_engine, Evaluator(args.dataset), "rocauc")
+            valid_perf = eval(model, device, valid_loader, retrieval_engine, Evaluator(args.dataset), "rocauc")
+            test_perf =  eval(model, device, test_loader, retrieval_engine,  Evaluator(args.dataset), "rocauc")
+
         elif args.source == "image":
              train_perf = eval(model, device, train_loader, retrieval_engine, CMetrics("acc"), "acc")
              valid_perf = eval(model, device, valid_loader, retrieval_engine, CMetrics("acc"), "acc")
              test_perf = eval(model, device, test_loader,  retrieval_engine, CMetrics("acc"), "acc")
         
         elif args.source == "lsc":
-             if args.dataset == "PCQ4M":
+             if args.dataset == "PCQM4M":
                  train_perf = eval(model, device, train_loader, retrieval_engine, PCQM4MEvaluator(), "mae")
                  valid_perf = eval(model, device, valid_loader, retrieval_engine, PCQM4MEvaluator(), "mae")
                  test_perf = eval(model, device, test_loader,  retrieval_engine,  PCQM4MEvaluator(), "mae")
@@ -232,7 +231,6 @@ def main():
         
         else:
             raise ValueError("{} is not supported".format(args.source))
-                
 
         print({'Train': train_perf, 'Validation': valid_perf, 'Test': test_perf})
         if 'classification' == task_type:
@@ -269,110 +267,27 @@ def main():
     if args.retrieval:
         args.retrieval=0
         print("test whether the parameter has been changed:")
-        if args.dataset == "ogbg-molmuv":
-            train_perf = eval(model.gnn, device, train_loader)
-            valid_perf = eval(model.gnn, device, valid_loader)
-            test_perf =  eval(model.gnn, device, test_loader)
-        else:
-            train_perf = eval(model.gnn, device, train_loader, evaluator= evaluator)
-            valid_perf = eval(model.gnn, device, valid_loader, evaluator= evaluator)
-            test_perf =  eval(model.gnn, device, test_loader, evaluator= evaluator)
-        
-        print("base_model_train_performance:", test_perf)
-        print("base_model_valid_performance:", valid_perf)
-        print("base_model_test_performance:", test_perf)
+        if args.source == "ogb":
+            test_perf = eval(model.gnn, device, test_loader,  None,  Evaluator(args.dataset), "rocauc")
+        elif args.source == "image":
+             test_perf = eval(model.gnn, device, test_loader,  None, CMetrics("acc"), "acc")
+        elif args.source == "lsc":
+            if args.dataset == "PCQ4M":
+                test_perf = eval(model.gnn, device, test_loader, retrieval_engine, PCQM4MEvaluator(), "mae")
+            elif args.dataset == "PCQM4Mv2":
+                test_perf = eval(model.gnn, device, test_loader, retrieval_engine, PCQM4Mv2Evaluator(), "mae")
 
-    if not os.path.exists("save/total.csv"):
-        csvwriter = csv.writer(open("save/total.csv", "w"))
+        print("base_model_test_performance:", test_perf)
+        args.retrieval = 1
+
+    if not os.path.exists(args.output_model_dir + "/total.csv"):
+        csvwriter = csv.writer(open(args.output_model_dir + "/total.csv", "w"))
         csvwriter.writerow(["dataset", "model", "use_retrieval", "retrieval_num", "evaluation_metric", "train", "val", "test"])
     else:
-        csvwriter = csv.writer(open("save/total.csv", "a"))
+        csvwriter = csv.writer(open(args.output_model_dir + "/total.csv", "a"))
 
     csvwriter.writerow([args.dataset, args.gnn, args.retrieval, args.k, args.metrics, best_train_perf, best_val_perf, best_test_perf])
 
-def main_test():
-    dataset = PygGraphPropPredDataset(name = args.dataset)
-    if args.feature == 'full':
-        pass
-    elif args.feature == 'simple':
-        print('using simple feature')
-        # only retain the top two node/edge features
-        dataset.data.x = dataset.data.x[:,:2]
-        dataset.data.edge_attr = dataset.data.edge_attr[:,:2]
-
-    split_idx = dataset.get_idx_split()
-    ### automatic evaluator. takes dataset name as input
-    evaluator = Evaluator(args.dataset)
-
-    train_loader = DataLoader(dataset[split_idx["train"]], batch_size=args.batch_size, shuffle=True,  num_workers = args.num_workers)
-    valid_loader = DataLoader(dataset[split_idx["valid"]], batch_size=args.batch_size, shuffle=False, num_workers = args.num_workers)
-    test_loader =  DataLoader(dataset[split_idx["test"]],  batch_size=args.batch_size, shuffle=False, num_workers = args.num_workers)
-    num_classes = dataset.num_tasks
-
-    if args.retrieval:
-        # using the training dataset
-        retrieval_engine = Retrieval(train_dataset, num_classes, args, args.gnn)
-        base_model = GCN_NET(num_tasks=num_classes, num_layer=args.num_layer,
-                        emb_dim= args.emb_dim, drop_ratio=args.drop_ratio, source=args.source, dataset=args.dataset).to(device)
-        adapter = Attention(args.emb_dim, args.k)
-        model  = GraphRetrieval(gnn=base_model, adapter=adapter, source=args.source, dataset=args.dataset)
-
-        trained_model_path = "./save/{}_{}_{}.pth".format(args.dataset, args.gnn, args.k)
-        if not torch.cuda.is_available():
-            model.load_state_dict(torch.load(trained_model_path ,
-                                             map_location=torch.device('cpu'))["model"], strict=False)
-        else:
-           model.load_state_dict(torch.load(trained_model_path )["model"], strict=False)
-        model.to(device)
-        if args.dataset == "ogbg-molmuv":
-            train_perf = eval(model, device, train_loader, retrieval_engine)
-            valid_perf = eval(model, device, valid_loader, retrieval_engine)
-            test_perf = eval(model, device, test_loader,  retrieval_engine)
-        else:
-            train_perf = eval(model, device, train_loader, retrieval_engine, evaluator)
-            valid_perf = eval(model, device, valid_loader, retrieval_engine, evaluator)
-            test_perf =  eval(model, device, test_loader, retrieval_engine, evaluator)
-        
-        print("graphretrieval_train_performance:", test_perf)
-        print("graphretrieval_valid_performance:", valid_perf)
-        print("graphretrieval_test_performance:", test_perf)
-
-        args.retrieval=0
-        print("test whether the parameter has been changed:")
-        if args.dataset == "ogbg-molmuv":
-            train_perf = eval(model.gnn, device, train_loader)
-            valid_perf = eval(model.gnn, device, valid_loader)
-            test_perf =  eval(model.gnn, device, test_loader)
-        else:
-            train_perf = eval(model.gnn, device, train_loader, evaluator= evaluator)
-            valid_perf = eval(model.gnn, device, valid_loader, evaluator= evaluator)
-            test_perf =  eval(model.gnn, device, test_loader, evaluator= evaluator)
-        
-        print("base_model_train_performance:", test_perf)
-        print("base_model_valid_performance:", valid_perf)
-        print("base_model_test_performance:", test_perf)
-
-    else:
-        trained_model_path = "./save/{}_{}_{}.pth".format(args.dataset, args.gnn, "0")
-        model = GCN_NET(num_tasks=num_classes, num_layer=args.num_layer,emb_dim= args.emb_dim, drop_ratio=args.drop_ratio, source=args.source, dataset=args.dataset).to(device)
-        if not torch.cuda.is_available():
-            model.load_state_dict(torch.load(trained_model_path ,
-                                             map_location=torch.device('cpu'))["model"], strict=False)
-        else:
-           model.load_state_dict(torch.load(trained_model_path )["model"], strict=False)
-        model.to(device)
-        if args.dataset == "ogbg-molmuv":
-            train_perf = eval(model, device, train_loader)
-            valid_perf = eval(model, device, valid_loader)
-            test_perf =  eval(model, device, test_loader)
-        else:
-            train_perf = eval(model, device, train_loader, evaluator= evaluator)
-            valid_perf = eval(model, device, valid_loader, evaluator= evaluator)
-            test_perf =  eval(model, device, test_loader, evaluator= evaluator)
-        
-        print("base_model_train_performance:", test_perf)
-        print("base_model_valid_performance:", valid_perf)
-        print("base_model_test_performance:", test_perf)
 
 if __name__ == "__main__":
     main()

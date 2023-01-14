@@ -1,0 +1,7 @@
+numpy
+torch==1.11.0
+torch-geometric==2.1.0
+faiss-gpu
+tensorboard
+PyTDC
+ogb

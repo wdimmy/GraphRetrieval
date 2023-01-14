@@ -17,15 +17,19 @@ class GCNConv(MessagePassing):
             self.bond_encoder = BondEncoder(emb_dim = emb_dim)
         elif self.source == "image":
             self.bond_encoder = nn.Linear(1, emb_dim)
+        elif self.source == "ddi":
+            self.bond_encoder = nn.Linear(3, emb_dim)
         else:
             raise ValueError("{} is not supported".format(source))
 
     def forward(self, x, edge_index, edge_attr):
         x = self.linear(x)
-        if self.source == "ogb" or self.source == "lsc":
+        if self.source == "ogb" or self.source == "lsc" or self.source == "ddi":
             edge_embedding = self.bond_encoder(edge_attr)
         elif self.source == "image":
             edge_embedding = self.bond_encoder(edge_attr.unsqueeze(1))
+        else:
+            raise ValueError("{} is not supported".format(self.source))
 
         row, col = edge_index
         #edge_weight = torch.ones((edge_index.size(1), ), device=edge_index.device)

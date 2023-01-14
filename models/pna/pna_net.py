@@ -23,6 +23,8 @@ class PNA_NET(torch.nn.Module):
                self.node_emb =  nn.Linear(1, self.emb_dim)
         elif self.source == "lsc":
             self.node_emb =  AtomEncoder(emb_dim=self.emb_dim)
+        elif self.source == "ddi":
+            self.node_emb = nn.Linear(9, self.emb_dim)
 
         aggregators = ['mean', 'min', 'max', 'std']
         scalers = ['identity', 'amplification', 'attenuation']

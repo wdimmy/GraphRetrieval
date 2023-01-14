@@ -1,47 +1,27 @@
-from sys import breakpointhook
 from models.retrieval.build_search_engine import *
-import numpy as np
-import dgl
-
-
-def collate(samples):
-    # The input samples is a list of pairs (graph, label).
-    graphs, labels = map(list, zip(*samples))
-    labels = torch.tensor(np.array(labels))
-    tab_sizes_n = [graphs[i].number_of_nodes() for i in range(len(graphs))]
-    tab_snorm_n = [torch.FloatTensor(size, 1).fill_(1. / float(size)) for size in tab_sizes_n]
-    snorm_n = torch.cat(tab_snorm_n).sqrt()
-    tab_sizes_e = [graphs[i].number_of_edges() for i in range(len(graphs))]
-    tab_snorm_e = [torch.FloatTensor(size, 1).fill_(1. / float(size)) for size in tab_sizes_e]
-    snorm_e = torch.cat(tab_snorm_e).sqrt()
-    for idx, graph in enumerate(graphs):
-        graphs[idx].ndata['feat'] = graph.ndata['feat'].float()
-        graphs[idx].edata['feat'] = graph.edata['feat'].float()
-    batched_graph = dgl.batch(graphs)
-    return (batched_graph, labels, snorm_n, snorm_e)
 
 
 class Retrieval():
-
     def __init__(self, train_dataset, num_tasks, args, model_type):
         self.Index, self.IndexGraphMap, self.model = build_search_engine(train_dataset, num_tasks,
                                                              args, model_type=model_type)
         self.k = args.k
+        self.source = args.source
 
-    def encode(self, batched_data, pixels=False, train=True):
+    def encode(self, batched_data, train=True):
         with torch.no_grad():
-            if pixels:
-                g, h, e, snorm_n, snorm_e = batched_data
-                raw_graph = self.model.get_graph_representation(g, h, e, snorm_n, snorm_e)
+            if self.source == "ddi":
+                graph1_embed = self.model.get_graph_representation(
+                    CustomizedBatch(batched_data.x_s, batched_data.edge_index_s, batched_data.batch_s, batched_data.y_s,
+                                    batched_data.edge_feat_s))
+                graph2_embed = self.model.get_graph_representation(
+                    CustomizedBatch(batched_data.x_t, batched_data.edge_index_t, batched_data.batch_t, batched_data.y_t,
+                                    batched_data.edge_feat_t))
+                raw_graph = torch.cat([graph1_embed, graph2_embed], dim=-1).cpu().detach().numpy()
             else:
-                raw_graph = self.model.get_graph_representation(batched_data)
-        retrieval_indexes = []
-        normalize_flag = True
-        if normalize_flag:
-            raw_graph = raw_graph.cpu().detach().numpy()
-            transformer = Normalizer().fit(raw_graph)
-            raw_graph = transformer.transform(raw_graph)
+                raw_graph = self.model.get_graph_representation(batched_data).cpu().detach().numpy()
 
+        retrieval_indexes = []
         if train: # retrieval dropout
             _, I = self.Index.search(raw_graph, self.k+1)
             for i in range(1, self.k+1):
@@ -57,10 +37,6 @@ class Retrieval():
         for retrieval_index in retrieval_indexes:
             graph_list = []
             [graph_list.append(self.IndexGraphMap[index]) for index in retrieval_index]
-            if pixels:
-                batch_retrieval_graph = collate(graph_list)
-            else:
-                batch_retrieval_graph = Batch.from_data_list(graph_list)
+            batch_retrieval_graph = Batch.from_data_list(graph_list)
             batch_retrieval_graph_list.append(batch_retrieval_graph)
-
         return batch_retrieval_graph_list

@@ -3,7 +3,7 @@ import argparse
 parser = argparse.ArgumentParser(description='GNN baselines on ogbgmol* data with Pytorch Geometrics')
 parser.add_argument('--device', type=int, default=0,
                     help='which gpu to use if any (default: 0)')
-parser.add_argument('--source', type=str, default="image",
+parser.add_argument('--source', type=str, default="ogb",
                     help='which gpu to use if any (default: 0)')                    
 parser.add_argument('--gnn', type=str, default='pna',
                     help='GNN gin, gin-virtual, or gcn, or gcn-virtual (default: gin-virtual)')
@@ -23,8 +23,8 @@ parser.add_argument('--epochs', type=int, default=100,
                      help='number of epochs to train (default: 100)')
 parser.add_argument('--num_workers', type=int, default=0,
                     help='number of workers (default: 0)')
-parser.add_argument('--dataset', type=str, default="MNIST",
-                    help='dataset name (default: ogbg-molmuv)')
+parser.add_argument('--dataset', type=str, default="ogbg-molbbbp",
+                    help='dataset name (default: ogbg-molbbbp)')
 
 parser.add_argument('--feature', type=str, default="full",
                     help='full feature or simple feature')

@@ -7,7 +7,7 @@ parser.add_argument('--drop_ratio', type=float, default=0.5,
                     help='dropout ratio (default: 0.5)')
 parser.add_argument('--num_layer', type=int, default=5,
                     help='number of GNN message passing layers (default: 5)')
-parser.add_argument('--source', type=str, default="lsc",
+parser.add_argument('--source', type=str, default="ogb",
                     help='which gpu to use if any (default: 0)')  
 parser.add_argument('--gnn', type=str, default="gin", help='GNN model name')
 parser.add_argument('--metrics', type=str, default="rocauc",
@@ -20,14 +20,14 @@ parser.add_argument('--epochs', type=int, default=300,
                     help='number of epochs to train (default: 100)')
 parser.add_argument('--num_workers', type=int, default=0,
                     help='number of workers (default: 0)')
-parser.add_argument('--dataset', type=str, default="ogbg-molbace",
-                    help='dataset name (default: ogbg-molmuv)')
+parser.add_argument('--dataset', type=str, default="ogbg-molbbbp",
+                    help='dataset name (default: "ogbg-molbbbp")')
 
 parser.add_argument('--feature', type=str, default="full",
                     help='full feature or simple feature')
 parser.add_argument('--filename', type=str, default="result.txt",
                     help='filename to output result (default: )')
-parser.add_argument('--output_model_dir', type=str, default="save",
+parser.add_argument('--output_model_dir', type=str, default="outputs",
                     help='the path used for saving the best evacl model')
 parser.add_argument('--retrieval', type=int, default=0,
                     help='decide whether to use the retrieval results')

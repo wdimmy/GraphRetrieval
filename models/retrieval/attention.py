@@ -14,7 +14,6 @@ class Attention(nn.Module):
         self.bias = nn.Parameter(torch.Tensor(k+1))
         self.bias.data.zero_()
 
-
     def forward(self, q, k):
         bs = q.size(0)
         q = self.q_linear(q).view(bs, -1, self.d_model)
