@@ -1,4 +1,4 @@
-This repository contains code for our paper **An Empirical Study of Retrieval-enhanced Graph Neural Networks** (Under Review for IJCAI 2023).
+This repository contains code for ECAI 2023 paper **An Empirical Study of Retrieval-enhanced Graph Neural Networks** by Dingmin Wang, Shengchao Liu, Hanchen Wang, Bernardo Cuenca Grau,Linfeng Song, Jian Tang, Le Song, Qi Liu.
 
 ## Dependencies
 - python 3.8
@@ -105,3 +105,18 @@ python train_gcn.py \
 ```
 where **--retrieval 1** denotes  the retrieval-enhanced training mode, in which the checkpoints of the corresponding baseline models must exist, otherwise, there
 will be errors. **--k** means the number of retrieved examples.
+
+### Citation:
+If you find our paper and resources useful, please kindly cite our paper:
+
+```bibtex
+@incollection{graphretrieval,
+  title={An Empirical Study of Retrieval-enhanced Graph Neural Networks},
+  author={Dingmin Wang, Shengchao Liu, Hanchen Wang, Bernardo Cuenca Grau,Linfeng Song, Jian Tang, Le Song and Qi Liu},
+  booktitle={ECAI 2023},
+  year={2023},
+}
+```
+
+### Contact
+If you have any questions, feel free to contact me via (dingmin.wang@cs.ox.ac.uk).
