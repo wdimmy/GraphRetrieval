@@ -106,7 +106,7 @@ python train_gcn.py \
 where **--retrieval 1** denotes  the retrieval-enhanced training mode, in which the checkpoints of the corresponding baseline models must exist, otherwise, there
 will be errors. **--k** means the number of retrieved examples.
 
-### Citation:
+#### Citation:
 If you find our paper and resources useful, please kindly cite our paper:
 
 ```bibtex
@@ -118,5 +118,5 @@ If you find our paper and resources useful, please kindly cite our paper:
 }
 ```
 
-### Contact
+#### Contact
 If you have any questions, feel free to contact me via (dingmin.wang@cs.ox.ac.uk).
